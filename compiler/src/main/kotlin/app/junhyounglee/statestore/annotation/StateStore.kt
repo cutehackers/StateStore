@@ -4,4 +4,4 @@ import kotlin.reflect.KClass
 
 @Target(AnnotationTarget.CLASS, AnnotationTarget.FILE)
 @Retention(AnnotationRetention.RUNTIME)
-annotation class StateStore(val store: KClass<*>)
+annotation class StateStore(val stateSpec: KClass<*>)

@@ -85,7 +85,6 @@ class StateStoreProcessor : SymbolProcessor {
         coordinators = mutableListOf<StateStoreCoordinator>().apply {
             add(StateStoreCoordinator(StateStore::class))
         }
-        codeGenerator.generatedFile
     }
 
     companion object {

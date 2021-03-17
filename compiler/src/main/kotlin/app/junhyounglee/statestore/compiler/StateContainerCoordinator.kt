@@ -5,8 +5,17 @@ import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.*
 import kotlin.reflect.KClass
 
-interface StateContainerCoordinator {
-    fun process(resolver: Resolver, logger: KSPLogger)
+abstract class StateContainerCoordinator(internal val klassType: KClass<out Annotation>) {
+
+    fun process(resolver: Resolver, logger: KSPLogger) {
+        try {
+            onProcess(resolver, logger)
+        } catch (e: Throwable) {
+            logger.exception(e)
+        }
+    }
+
+    abstract fun onProcess(resolver: Resolver, logger: KSPLogger)
 }
 
 fun KSPropertyDeclaration.getPropertyTypeSimpleName() =
@@ -16,15 +25,15 @@ fun KSPropertyDeclaration.getPropertyTypeSimpleName() =
         ""
     }
 
-class StateStoreCoordinator(
-    private val klassType: KClass<out Annotation>
-) : StateContainerCoordinator {
+class StateStoreCoordinator(klassType: KClass<out Annotation>)
+    : StateContainerCoordinator(klassType) {
+
     private val visitor = StateStoreArgumentVisitor()
     private val arguments = mutableListOf<Any>()
 
-    override fun process(resolver: Resolver, logger: KSPLogger) {
+    override fun onProcess(resolver: Resolver, logger: KSPLogger) {
         klassType.qualifiedName?.also { annotationName ->
-            // visit @StateStore annotation
+            // visit @StateStore annotation class
             resolver.getSymbolsWithAnnotation(annotationName).forEach {
                 it.annotations.single().arguments.map { argument: KSValueArgument ->
                     argument.accept(visitor, Unit)
@@ -38,10 +47,10 @@ class StateStoreCoordinator(
                     logger.error("Store type should be an interface. ${(it as KSType).declaration.qualifiedName?.asString()}")
                 }
 
-                val storeType = declaration as KSClassDeclaration
+                val specType = declaration as KSClassDeclaration
 
                 // parse if there are LiveData properties => ex) sample: LiveData<Int>
-                storeType.getAllProperties().forEach { property: KSPropertyDeclaration ->
+                specType.getAllProperties().forEach { property: KSPropertyDeclaration ->
                     /*
                      * KSReferenceElement
                      *  - KSClassifierReference(DeclaredType)
@@ -53,7 +62,7 @@ class StateStoreCoordinator(
 
                     /*
                      * val sample: LiveData<Int>
-                     *  sample:  property.simpleName.asString()
+                     *  stateSpec: property.simpleName.asString()
                      *  androidx.lifecycle.LiveData: propertyType.declaration.qualifiedName?.asString()
                      *  kotlin.Int: propertyType.arguments.first().type?.resolve()?.declaration?.qualifiedName?.asString()
                      */
