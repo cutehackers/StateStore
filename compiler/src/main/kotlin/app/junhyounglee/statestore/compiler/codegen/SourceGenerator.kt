@@ -7,29 +7,29 @@ import java.io.IOException
 
 abstract class SourceGenerator<ARGS : SourceArguments>() {
 
-    @Throws(IOException::class)
-    fun generate(argument: ARGS) {
-        /*
-         * for custom class path can be set like this.
-         *  val file = File(folder, argument.getFileName())
-         *  FileSpec.get(argument.className.packageName, klass).writeTo(file)
-         */
-        val klass = onGenerate(argument)
+  @Throws(IOException::class)
+  fun generate(argument: ARGS) {
+    /*
+     * for custom class path can be set like this.
+     *  val file = File(folder, argument.getFileName())
+     *  FileSpec.get(argument.className.packageName, klass).writeTo(file)
+     */
+    val klass = onGenerate(argument)
 
-        try {
-            FileSpec.get(argument.className.packageName, klass).writeTo(File("{SOURCE_FILE_PATH}"))
+    try {
+      FileSpec.get(argument.className.packageName, klass).writeTo(File("{SOURCE_FILE_PATH}"))
 
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
+    } catch (e: IOException) {
+      e.printStackTrace()
     }
+  }
 
-    abstract fun onGenerate(argument: ARGS): TypeSpec
+  protected abstract fun onGenerate(argument: ARGS): TypeSpec
 
 
-    companion object {
-        const val DOCUMENTATION = "Auto generated class from StateStore"
+  companion object {
+    const val DOCUMENTATION = "Auto generated class from StateStore"
 
-        internal const val CORE_PACKAGE = "app.junhyounglee.statestore"
-    }
+    internal const val CORE_PACKAGE = "app.junhyounglee.statestore"
+  }
 }
