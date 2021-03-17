@@ -1,0 +1,14 @@
+pluginManagement {
+    plugins {
+        id 'com.google.devtools.ksp' version getProperty('versions.kotlin.ksp')
+        id 'org.jetbrains.kotlin.jvm'
+    }
+    repositories {
+        gradlePluginPortal()
+        google()
+    }
+}
+
+include ':compiler'
+include ':sample'
+rootProject.name = "StateStore"
