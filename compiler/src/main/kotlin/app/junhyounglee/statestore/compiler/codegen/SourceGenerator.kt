@@ -5,10 +5,10 @@ import com.squareup.kotlinpoet.TypeSpec
 import java.io.File
 import java.io.IOException
 
-abstract class SourceGenerator<ARGS : SourceArguments>() {
+abstract class SourceGenerator<ARGS : SourceArguments>(private val argument: ARGS) {
 
   @Throws(IOException::class)
-  fun generate(argument: ARGS) {
+  fun generate() {
     /*
      * for custom class path can be set like this.
      *  val file = File(folder, argument.getFileName())

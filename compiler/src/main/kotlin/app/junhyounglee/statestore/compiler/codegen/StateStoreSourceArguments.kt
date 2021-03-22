@@ -4,24 +4,21 @@ import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.TypeName
 
 class StateStoreSourceArguments(
-    targetTypeName: TypeName,
-    className: ClassName
-) : SourceArguments(targetTypeName, className) {
+    className: ClassName,
+    val superClassName: ClassName
+) : SourceArguments(className) {
 
   class Builder {
-    private lateinit var targetTypeName: TypeName
     private lateinit var className: ClassName
+    private lateinit var superClassName: ClassName
 
-    fun setTargetTypeName(targetTypeName: TypeName) = apply { this.targetTypeName = targetTypeName }
     fun setClassName(className: ClassName) = apply { this.className = className }
+    fun setSuperClassName(superClassName: ClassName) = apply { this.superClassName = superClassName }
 
-    fun isValid(): Boolean = this::targetTypeName.isInitialized
+    fun isValid(): Boolean = this::superClassName.isInitialized
         && this::className.isInitialized
 
-    fun build() = StateStoreSourceArguments(
-        targetTypeName,
-        className
-    )
+    fun build() = StateStoreSourceArguments(className, superClassName)
   }
 
   companion object {

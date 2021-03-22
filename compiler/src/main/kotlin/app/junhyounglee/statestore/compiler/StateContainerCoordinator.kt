@@ -1,7 +1,10 @@
 package app.junhyounglee.statestore.compiler
 
+import app.junhyounglee.statestore.compiler.codegen.SourceArguments
+import app.junhyounglee.statestore.compiler.codegen.SourceGenerator
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
+import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSClassifierReference
 import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.Origin
@@ -14,13 +17,25 @@ abstract class StateContainerCoordinator(internal val klassType: KClass<out Anno
 
   fun process(resolver: Resolver, logger: KSPLogger) {
     try {
-      onProcess(resolver, logger)
+      val generator: SourceGenerator<out SourceArguments> = onProcess(resolver, logger)
+      generator.generate()
     } catch (e: Throwable) {
       logger.exception(e)
     }
   }
 
-  protected abstract fun onProcess(resolver: Resolver, logger: KSPLogger)
+  protected abstract fun onProcess(
+      resolver: Resolver,
+      logger: KSPLogger
+  ): SourceGenerator<out SourceArguments>
+
+  fun createClassName(annotatedType: KSClassDeclaration): String = annotatedType.simpleName.asString().let {
+    if (it.isEmpty()) {
+      ""
+    } else {
+      "Abs${it}"
+    }
+  }
 }
 
 fun KSPropertyDeclaration.getTypeSimpleName() =

@@ -17,4 +17,4 @@ interface SampleStateSpec {
 }
 
 @StateStore(SampleStateSpec::class)
-class RealSampleStateStore
+class SampleStateStore
