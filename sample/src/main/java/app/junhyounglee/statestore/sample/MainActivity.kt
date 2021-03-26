@@ -12,9 +12,15 @@ class MainActivity : AppCompatActivity() {
   }
 }
 
-interface SampleStateSpec {
+interface HelloStateSpec {
+  val sample: LiveData<Int>
+}
+interface WorldStateSpec {
   val sample: LiveData<Int>
 }
 
-@StateStore(SampleStateSpec::class)
-class SampleStateStore
+@StateStore(HelloStateSpec::class)
+class HelloStateStore
+
+@StateStore(WorldStateSpec::class)
+class WorldStateStore
