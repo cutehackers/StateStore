@@ -3,10 +3,17 @@ package app.junhyounglee.statestore.compiler
 import app.junhyounglee.statestore.annotation.StateStore
 import app.junhyounglee.statestore.compiler.codegen.StateStoreCoordinator
 import com.google.devtools.ksp.processing.CodeGenerator
+import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.symbol.KSAnnotated
+import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSType
+import com.google.devtools.ksp.symbol.KSValueArgument
+import com.google.devtools.ksp.symbol.KSVisitorVoid
+import com.google.devtools.ksp.validate
+import java.io.OutputStream
 
 /**
  * StateStore symbol processor
