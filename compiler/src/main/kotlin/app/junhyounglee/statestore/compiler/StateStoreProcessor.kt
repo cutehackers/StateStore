@@ -43,6 +43,9 @@ import com.google.devtools.ksp.symbol.KSAnnotated
  *     get() = _sample
  *   protected var _sample = MutableLiveData<Int>()
  * }
+ *
+ * refs
+ *  - https://medium.com/@jsuch2362/my-first-kotlin-symbol-processing-tool-for-android-4eb3a2cfd600
  */
 class StateStoreProcessor : SymbolProcessor {
 
@@ -64,8 +67,7 @@ class StateStoreProcessor : SymbolProcessor {
   }
 
   override fun process(resolver: Resolver): List<KSAnnotated> {
-    coordinators.forEach { it.process(resolver, logger) }
-
+    coordinators.forEach { it.process(resolver, codeGenerator, logger) }
     return emptyList()
   }
 

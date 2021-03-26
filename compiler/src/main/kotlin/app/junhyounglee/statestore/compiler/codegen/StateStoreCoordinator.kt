@@ -6,6 +6,7 @@ import app.junhyounglee.statestore.compiler.getTypeSimpleName
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.*
+import com.google.devtools.ksp.validate
 import com.squareup.kotlinpoet.ClassName
 
 /**
@@ -23,6 +24,7 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
   private val visitor = StateStoreArgumentVisitor()
   private var annotatedType: KSClassDeclaration? = null
   private val arguments = mutableListOf<Any>()
+  private val targets = mutableListOf<KSClassDeclaration>()
 
   override fun onProcess(
       resolver: Resolver,
@@ -32,8 +34,9 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
 
     // visit @StateStore annotation class
     resolver.getSymbolsWithAnnotation(annotationName)
-        .filterIsInstance<KSClassDeclaration>()
-        .forEach { annotatedType: KSClassDeclaration ->
+        .filter { it is KSClassDeclaration && it.validate() }
+        .forEach {
+          val annotatedType = it as KSClassDeclaration
           // annotatedType == SampleStateStore
           //val annotation: KSAnnotation? = annotatedType.annotations.find { it.annotationType.resolve() ==  KSType(StateStore::class) }
           this.annotatedType = annotatedType
@@ -48,45 +51,48 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
     // argument.stateSpec == SampleStateSpec
     var stateSpec: ClassName? = null
 
-    arguments.forEach {
-      // check if arguments are interface type
-      val declaration: KSDeclaration? = (it as? KSType)?.declaration
-      if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
-        logger.error("Store type should be an interface. ${(it as KSType).declaration.qualifiedName?.asString()}")
-      }
-
-      val stateSpecType = declaration as KSClassDeclaration
-
-      stateSpec = stateSpecType.let {
-        ClassName(it.packageName.asString(), it.simpleName.asString())
-      }
-
-      // parse if there are LiveData properties => ex) sample: LiveData<Int>
-      stateSpecType.getAllProperties().forEach { property: KSPropertyDeclaration ->
-        /*
-         * KSReferenceElement
-         *  - KSClassifierReference(DeclaredType)
-         *  - KSCallableReference(ExecutableType)
-         */
-        val propertyType = property.type.resolve()
-        // "LiveData"
-        val propertyTypeSimpleName = property.getTypeSimpleName()
-
-        /*
-         * val sample: LiveData<Int>
-         *  stateSpec: property.simpleName.asString()
-         *  androidx.lifecycle.LiveData: propertyType.declaration.qualifiedName?.asString()
-         *  kotlin.Int: propertyType.arguments.first().type?.resolve()?.declaration?.qualifiedName?.asString()
-         */
-      }
+    val argument = arguments.singleOrNull() ?: throw IllegalStateException("StateStore should have a stateSpec interface.")
+    // check if arguments are interface type
+    val declaration: KSDeclaration? = (argument as? KSType)?.declaration
+    if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
+      logger.error("Store type should be an interface. ${(argument as KSType).declaration.qualifiedName?.asString()}")
     }
 
-    val superClassName = stateSpec ?: throw IllegalStateException("Invlaid stateSpec class argument found!")
+    val stateSpecType = declaration as KSClassDeclaration
+    stateSpec = stateSpecType.let {
+      ClassName(it.packageName.asString(), it.simpleName.asString())
+    }
 
-    // TODO 아래의 빌더 클래스와 StateStoreSourceGenerator를 통해서 파일을 생성할 것. AbsSampleStateStore
+    // parse if there are LiveData properties => ex) sample: LiveData<Int>
+    stateSpecType.getAllProperties().forEach { property: KSPropertyDeclaration ->
+      /*
+       * KSReferenceElement
+       *  - KSClassifierReference(DeclaredType)
+       *  - KSCallableReference(ExecutableType)
+       */
+      val propertyType = property.type.resolve()
+      // "LiveData"
+      val propertyTypeSimpleName = property.getTypeSimpleName()
+
+      /*
+       * val sample: LiveData<Int>
+       *  stateSpec: property.simpleName.asString()
+       *  androidx.lifecycle.LiveData: propertyType.declaration.qualifiedName?.asString()
+       *  kotlin.Int: propertyType.arguments.first().type?.resolve()?.declaration?.qualifiedName?.asString()
+       */
+    }
+
+    val myClass = ClassName(annotatedType.packageName.asString(), createClassName(annotatedType))
+
+    logger.warn("originatingFile:  ${annotatedType.containingFile}")
+    logger.warn("myClass: ${myClass.packageName}.${myClass.simpleName}")
+
+    val superClassName = stateSpec ?: throw IllegalStateException("Invalid stateSpec class argument found!")
+
     return StateStoreSourceArguments.builder()
-        .setClassName(ClassName(annotatedType.packageName.asString(), createClassName(annotatedType)))
         .setSuperClassName(superClassName)
+        .setClassName(ClassName(annotatedType.packageName.asString(), createClassName(annotatedType)))
+        .setOriginatingFiles(annotatedType.containingFile?.let { listOf(it) } ?: emptyList())
         .let {
           StateStoreSourceGenerator(it.build())
         }

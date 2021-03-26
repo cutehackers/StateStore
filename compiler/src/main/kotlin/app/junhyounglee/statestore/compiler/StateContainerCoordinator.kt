@@ -2,6 +2,7 @@ package app.junhyounglee.statestore.compiler
 
 import app.junhyounglee.statestore.compiler.codegen.SourceArguments
 import app.junhyounglee.statestore.compiler.codegen.SourceGenerator
+import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.KSClassDeclaration
@@ -15,10 +16,11 @@ import kotlin.reflect.KClass
  */
 abstract class StateContainerCoordinator(internal val klassType: KClass<out Annotation>) {
 
-  fun process(resolver: Resolver, logger: KSPLogger) {
+  fun process(resolver: Resolver, codeGenerator: CodeGenerator, logger: KSPLogger) {
     try {
       val generator: SourceGenerator<out SourceArguments> = onProcess(resolver, logger)
-      generator.generate()
+      generator.generate(codeGenerator)
+      logger.warn("generating coordinator...")
     } catch (e: Throwable) {
       logger.exception(e)
     }
