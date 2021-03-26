@@ -1,5 +1,6 @@
 package app.junhyounglee.statestore.compiler
 
+import app.junhyounglee.statestore.annotation.StateStore
 import app.junhyounglee.statestore.compiler.codegen.StateStoreCoordinator
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.KSPLogger
@@ -67,7 +68,52 @@ class StateStoreProcessor : SymbolProcessor {
   }
 
   override fun process(resolver: Resolver): List<KSAnnotated> {
-    coordinators.forEach { it.process(resolver, codeGenerator, logger) }
+    //coordinators.forEach { it.process(resolver, logger) }
+
+    val annotatedTypes: List<KSClassDeclaration> =
+        resolver.getSymbolsWithAnnotation(StateStore::class.qualifiedName!!)
+            .filter { it is KSClassDeclaration && it.validate() }
+            .map { it as KSClassDeclaration }
+
+    if (annotatedTypes.isEmpty()) {
+      return emptyList()
+    }
+
+    // 1. file generation test
+    val sampleTargetClass = annotatedTypes.first()
+    val output = codeGenerator.createNewFile(
+        dependencies = Dependencies(false, *annotatedTypes.map { it.containingFile!! }.toTypedArray()),
+        packageName = sampleTargetClass.packageName.asString(),
+        fileName = "Mvl${sampleTargetClass.simpleName.asString()}"
+    )
+    output.use {
+      it.appendText("package ${sampleTargetClass.packageName.asString()}\n\n")
+      it.appendText("abstract class Mvl${sampleTargetClass.simpleName.asString()} {\n")
+      it.appendText("}")
+    }
+
+    val stateStoreAnnotationType: KSType = resolver.getClassDeclarationByName(
+        "app.junhyounglee.statestore.annotation.StateStore"
+    )!!.asType(emptyList())
+
+    // 2. parsing annotated class type test
+    annotatedTypes.forEach { target ->
+      logger.warn("StateStore> target class name: ${target.qualifiedName?.asString()}, annotations: ${target.annotations.size}")
+
+      target.annotations
+          .find {
+            //it.annotationType.resolve() == stateStoreAnnotationType
+            logger.warn("StateStore. isStateStoreAnnotation: ${it.annotationType.resolve().declaration.qualifiedName?.asString()}")
+            it.shortName.asString() == "StateStore"
+          }
+          ?.let { ksAnnotation ->
+            logger.warn("StateStore> argument: ${ksAnnotation.arguments.first().name?.asString() ?: "NONAME"}, arguments size: ${ksAnnotation.arguments.size}")
+            ksAnnotation.arguments.find { it.name?.asString() == "stateSpec" }
+          }?.also { ksValueArgument ->
+            logger.warn("StateStore> StateSpec argument name = ${ksValueArgument.name?.asString()}")
+          }
+    }
+
     return emptyList()
   }
 
@@ -89,7 +135,20 @@ class StateStoreProcessor : SymbolProcessor {
     }
   }
 
+  private fun Resolver.getClassDeclarationByName(fullyQualifiedName: String): KSClassDeclaration? =
+      getClassDeclarationByName(getKSNameFromString(fullyQualifiedName))
+
+  inner class StateStoreVisitor : KSVisitorVoid() {
+    override fun visitValueArgument(valueArgument: KSValueArgument, data: Unit) {
+      //valueArgument.value?.also { arguments.add(it) }
+    }
+  }
+
   companion object {
     //private const val OPTIONS_DEBUGGABLE = "debuggable"
   }
+}
+
+fun OutputStream.appendText(str: String) {
+  this.write(str.toByteArray())
 }
