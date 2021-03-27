@@ -1,19 +1,33 @@
 package app.junhyounglee.statestore.compiler
 
 import app.junhyounglee.statestore.annotation.StateStore
+import app.junhyounglee.statestore.compiler.codegen.SourceGenerator
 import app.junhyounglee.statestore.compiler.codegen.StateStoreCoordinator
+import app.junhyounglee.statestore.compiler.codegen.StateStoreSourceArguments
+import app.junhyounglee.statestore.compiler.codegen.StateStoreSourceGenerator
+import app.junhyounglee.statestore.compiler.kotlinpoet.toClassName
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
+import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
+import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSDeclaration
+import com.google.devtools.ksp.symbol.KSFile
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSValueArgument
 import com.google.devtools.ksp.symbol.KSVisitorVoid
 import com.google.devtools.ksp.validate
+import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.FileSpec
+import com.squareup.kotlinpoet.KModifier
+import com.squareup.kotlinpoet.TypeSpec
 import java.io.OutputStream
+import java.io.OutputStreamWriter
+import java.nio.charset.Charset
 
 /**
  * StateStore symbol processor
@@ -62,6 +76,8 @@ class StateStoreProcessor : SymbolProcessor {
 
   lateinit var coordinators: List<StateContainerCoordinator>
 
+  private val targets = HashMap<KSClassDeclaration, KSValueArgument>()
+
   override fun init(
       options: Map<String, String>,
       kotlinVersion: KotlinVersion,
@@ -77,55 +93,86 @@ class StateStoreProcessor : SymbolProcessor {
   override fun process(resolver: Resolver): List<KSAnnotated> {
     //coordinators.forEach { it.process(resolver, logger) }
 
-    val annotatedTypes: List<KSClassDeclaration> =
-        resolver.getSymbolsWithAnnotation(StateStore::class.qualifiedName!!)
-            .filter { it is KSClassDeclaration && it.validate() }
-            .map { it as KSClassDeclaration }
+    resolver.getSymbolsWithAnnotation(StateStore::class.qualifiedName!!)
+        .filter { it is KSClassDeclaration && it.validate() }
+        .forEach { ksAnnotated ->
+          ksAnnotated.accept(StateStoreVisitor(targets), Unit)
+        }
 
-    if (annotatedTypes.isEmpty()) {
-      return emptyList()
-    }
-
-    // 1. file generation test
-    val sampleTargetClass = annotatedTypes.first()
-    val output = codeGenerator.createNewFile(
-        dependencies = Dependencies(false, *annotatedTypes.map { it.containingFile!! }.toTypedArray()),
-        packageName = sampleTargetClass.packageName.asString(),
-        fileName = "Mvl${sampleTargetClass.simpleName.asString()}"
-    )
-    output.use {
-      it.appendText("package ${sampleTargetClass.packageName.asString()}\n\n")
-      it.appendText("abstract class Mvl${sampleTargetClass.simpleName.asString()} {\n")
-      it.appendText("}")
-    }
-
-    val stateStoreAnnotationType: KSType = resolver.getClassDeclarationByName(
-        "app.junhyounglee.statestore.annotation.StateStore"
-    )!!.asType(emptyList())
-
-    // 2. parsing annotated class type test
-    annotatedTypes.forEach { target ->
-      logger.warn("StateStore> target class name: ${target.qualifiedName?.asString()}, annotations: ${target.annotations.size}")
-
-      target.annotations
-          .find {
-            //it.annotationType.resolve() == stateStoreAnnotationType
-            logger.warn("StateStore. isStateStoreAnnotation: ${it.annotationType.resolve().declaration.qualifiedName?.asString()}")
-            it.shortName.asString() == "StateStore"
-          }
-          ?.let { ksAnnotation ->
-            logger.warn("StateStore> argument: ${ksAnnotation.arguments.first().name?.asString() ?: "NONAME"}, arguments size: ${ksAnnotation.arguments.size}")
-            ksAnnotation.arguments.find { it.name?.asString() == "stateSpec" }
-          }?.also { ksValueArgument ->
-            logger.warn("StateStore> StateSpec argument name = ${ksValueArgument.name?.asString()}")
-          }
-    }
+//    val stateStoreAnnotationType: KSType = resolver.getClassDeclarationByName(
+//        "app.junhyounglee.statestore.annotation.StateStore"
+//    )!!.asType(emptyList())
+//
+//    // 2. parsing annotated class type test
+//    annotationTargets.forEach { target ->
+//      logger.warn("StateStore> target class name: ${target.qualifiedName?.asString()}, annotations: ${target.annotations.size}")
+//
+//      target.annotations
+//          .find {
+//            //it.annotationType.resolve() == stateStoreAnnotationType
+//            logger.warn("StateStore. isStateStoreAnnotation: ${it.annotationType.resolve().declaration.qualifiedName?.asString()}")
+//            it.shortName.asString() == "StateStore"
+//          }
+//          ?.let { ksAnnotation ->
+//            logger.warn("StateStore> argument: ${ksAnnotation.arguments.first().name?.asString() ?: "NONAME"}, arguments size: ${ksAnnotation.arguments.size}")
+//            ksAnnotation.arguments.find { it.name?.asString() == "stateSpec" }
+//          }?.also { ksValueArgument ->
+//            logger.warn("StateStore> StateSpec argument name = ${ksValueArgument.name?.asString()}")
+//          }
+//    }
 
     return emptyList()
   }
 
   override fun finish() {
+    targets.forEach { (target: KSClassDeclaration, valueArgument: KSValueArgument) ->
+      logger.warn("StateStore> annotatedTargetType: ${target.qualifiedName?.asString()}, annotations: ${target.annotations.size}")
+      logger.warn("StateStore> stateSpec = ${valueArgument.name?.asString()}")
 
+      val stateSpec = valueArgument.value ?: IllegalStateException("StateStore should have stateSpec interface.")
+
+      // check if arguments are interface type
+      val declaration: KSDeclaration? = (stateSpec as? KSType)?.declaration
+      if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
+        logger.error("Store type should be an interface. ${(stateSpec as KSType).declaration.qualifiedName?.asString()}")
+      }
+
+      // now
+      val stateSpecType = declaration as KSClassDeclaration
+
+      val arguments = StateStoreSourceArguments.builder()
+          .setSuperClassName(stateSpecType.toClassName())
+          .setClassName(ClassName(target.packageName.asString(), "Abs${target.simpleName.asString()}"))
+          .setOriginatingFiles(target.containingFile?.let { listOf(it) } ?: emptyList())
+          .build()
+      val klass: TypeSpec = onGenerate(arguments)
+
+      FileSpec.get(arguments.className.packageName, klass)
+          .writeTo(codeGenerator, arguments)
+    }
+  }
+
+  private fun onGenerate(argument: StateStoreSourceArguments): TypeSpec {
+    val builder = TypeSpec.classBuilder(argument.className.simpleName)
+        .addKdoc(SourceGenerator.DOCUMENTATION)
+        .addModifiers(KModifier.PUBLIC)
+        .addModifiers(KModifier.ABSTRACT)
+        .addSuperinterface(argument.superClassName)
+    return builder.build()
+  }
+
+  private fun FileSpec.writeTo(
+      codeGenerator: CodeGenerator,
+      arguments: StateStoreSourceArguments
+  ) {
+    val dependencies = Dependencies(true, *arguments.originatingFiles.toTypedArray())
+    val packageName = arguments.className.packageName
+    val fileName = arguments.className.simpleName
+    val file = codeGenerator.createNewFile(dependencies, packageName, fileName)
+
+    // Don't use writeTo(file) because that tries to handle directories under the hood
+    OutputStreamWriter(file, Charset.forName("UTF-8"))
+        .use(::writeTo)
   }
 
   override fun onError() {
@@ -145,9 +192,32 @@ class StateStoreProcessor : SymbolProcessor {
   private fun Resolver.getClassDeclarationByName(fullyQualifiedName: String): KSClassDeclaration? =
       getClassDeclarationByName(getKSNameFromString(fullyQualifiedName))
 
-  inner class StateStoreVisitor : KSVisitorVoid() {
-    override fun visitValueArgument(valueArgument: KSValueArgument, data: Unit) {
-      //valueArgument.value?.also { arguments.add(it) }
+  class StateStoreVisitor(
+      private val targets: HashMap<KSClassDeclaration, KSValueArgument>
+  ) : KSVisitorVoid() {
+    private val visited = hashSetOf<Any>()
+
+    override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
+      classDeclaration.annotations
+          .firstOrNull { annotation: KSAnnotation ->
+            annotation.shortName.asString() == "StateStore"
+          }
+          ?.arguments?.firstOrNull {
+            it.name?.asString() == "stateSpec"
+          }
+          ?.also {
+            targets[classDeclaration] = it
+          }
+    }
+
+    // used to check if the symbol is already visited by using accept method.
+    private fun hasVisited(symbol: Any): Boolean {
+      return if (visited.contains(symbol)) {
+        true
+      } else {
+        visited.add(symbol)
+        false
+      }
     }
   }
 
