@@ -67,6 +67,7 @@ import java.nio.charset.Charset
  * }
  *
  * refs
+ *  - https://github.com/SeongUgJung/KspSample
  *  - https://medium.com/@jsuch2362/my-first-kotlin-symbol-processing-tool-for-android-4eb3a2cfd600
  */
 class StateStoreProcessor : SymbolProcessor {
