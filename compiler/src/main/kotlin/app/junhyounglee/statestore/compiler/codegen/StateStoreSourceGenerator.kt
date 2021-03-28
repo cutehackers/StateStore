@@ -1,5 +1,6 @@
 package app.junhyounglee.statestore.compiler.codegen
 
+import com.google.devtools.ksp.processing.KSPLogger
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.TypeSpec
 
@@ -19,11 +20,11 @@ class StateStoreSourceGenerator(
     argument: StateStoreSourceArguments
 ) : SourceGenerator<StateStoreSourceArguments>(argument) {
 
-  override fun onGenerate(argument: StateStoreSourceArguments): TypeSpec {
+  override fun onGenerate(argument: StateStoreSourceArguments, logger: KSPLogger): TypeSpec {
     val builder = TypeSpec.classBuilder(argument.className.simpleName)
         .addKdoc(DOCUMENTATION)
         .addModifiers(KModifier.PUBLIC)
-        .addModifiers(KModifier.OPEN)
+        .addModifiers(KModifier.ABSTRACT)
         .addSuperinterface(argument.superClassName)
     return builder.build()
   }

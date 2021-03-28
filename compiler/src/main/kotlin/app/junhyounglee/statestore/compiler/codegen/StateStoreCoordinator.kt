@@ -2,10 +2,16 @@ package app.junhyounglee.statestore.compiler.codegen
 
 import app.junhyounglee.statestore.annotation.StateStore
 import app.junhyounglee.statestore.compiler.StateContainerCoordinator
-import app.junhyounglee.statestore.compiler.getTypeSimpleName
+import app.junhyounglee.statestore.compiler.kotlinpoet.toClassName
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
-import com.google.devtools.ksp.symbol.*
+import com.google.devtools.ksp.symbol.ClassKind
+import com.google.devtools.ksp.symbol.KSAnnotation
+import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSDeclaration
+import com.google.devtools.ksp.symbol.KSType
+import com.google.devtools.ksp.symbol.KSValueArgument
+import com.google.devtools.ksp.symbol.KSVisitorVoid
 import com.google.devtools.ksp.validate
 import com.squareup.kotlinpoet.ClassName
 
@@ -21,89 +27,107 @@ import com.squareup.kotlinpoet.ClassName
  */
 class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
 
-  private val visitor = StateStoreArgumentVisitor()
-  private var annotatedType: KSClassDeclaration? = null
-  private val arguments = mutableListOf<Any>()
-  private val targets = mutableListOf<KSClassDeclaration>()
+  private val targets = HashMap<KSClassDeclaration, KSValueArgument>()
 
   override fun onProcess(
       resolver: Resolver,
       logger: KSPLogger
-  ): SourceGenerator<out SourceArguments> {
-    val annotationName = klassType.qualifiedName ?: throw IllegalStateException("Illegal type of annotation class.")
-
+  ): List<SourceGenerator<StateStoreSourceArguments>> {
     // visit @StateStore annotation class
-    resolver.getSymbolsWithAnnotation(annotationName)
+    resolver.getSymbolsWithAnnotation(klassType.qualifiedName!!)
         .filter { it is KSClassDeclaration && it.validate() }
-        .forEach {
-          val annotatedType = it as KSClassDeclaration
-          // annotatedType == SampleStateStore
-          //val annotation: KSAnnotation? = annotatedType.annotations.find { it.annotationType.resolve() ==  KSType(StateStore::class) }
-          this.annotatedType = annotatedType
-          annotatedType.annotations.single().arguments.map { argument: KSValueArgument ->
-            argument.accept(visitor, Unit)
-          }
+        .forEach { annotatedType ->
+          annotatedType.accept(StateStoreVisitor(targets), Unit)
         }
-
-    // annotatedType == SampleStateStore
-    val annotatedType = this.annotatedType
-        ?: throw IllegalStateException("Annotated class should not be a valid class.")
-    // argument.stateSpec == SampleStateSpec
-    var stateSpec: ClassName? = null
-
-    val argument = arguments.singleOrNull() ?: throw IllegalStateException("StateStore should have a stateSpec interface.")
-    // check if arguments are interface type
-    val declaration: KSDeclaration? = (argument as? KSType)?.declaration
-    if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
-      logger.error("Store type should be an interface. ${(argument as KSType).declaration.qualifiedName?.asString()}")
-    }
-
-    val stateSpecType = declaration as KSClassDeclaration
-    stateSpec = stateSpecType.let {
-      ClassName(it.packageName.asString(), it.simpleName.asString())
-    }
 
     // parse if there are LiveData properties => ex) sample: LiveData<Int>
-    stateSpecType.getAllProperties().forEach { property: KSPropertyDeclaration ->
-      /*
-       * KSReferenceElement
-       *  - KSClassifierReference(DeclaredType)
-       *  - KSCallableReference(ExecutableType)
-       */
-      val propertyType = property.type.resolve()
-      // "LiveData"
-      val propertyTypeSimpleName = property.getTypeSimpleName()
+//    stateSpecType.getAllProperties().forEach { property: KSPropertyDeclaration ->
+//      /*
+//       * KSReferenceElement
+//       *  - KSClassifierReference(DeclaredType)
+//       *  - KSCallableReference(ExecutableType)
+//       */
+//      val propertyType = property.type.resolve()
+//      // "LiveData"
+//      val propertyTypeSimpleName = property.getTypeSimpleName()
+//
+//      /*
+//       * val sample: LiveData<Int>
+//       *  stateSpec: property.simpleName.asString()
+//       *  androidx.lifecycle.LiveData: propertyType.declaration.qualifiedName?.asString()
+//       *  kotlin.Int: propertyType.arguments.first().type?.resolve()?.declaration?.qualifiedName?.asString()
+//       */
+//    }
 
-      /*
-       * val sample: LiveData<Int>
-       *  stateSpec: property.simpleName.asString()
-       *  androidx.lifecycle.LiveData: propertyType.declaration.qualifiedName?.asString()
-       *  kotlin.Int: propertyType.arguments.first().type?.resolve()?.declaration?.qualifiedName?.asString()
-       */
+    /*
+     * annotatedType == HelloStateStore or WorldStateStore
+     * stateSpecArgument(@StateStore.spec) == HelloStateSpec  or WorldStateSpec
+     */
+    return targets.map { (annotatedType: KSClassDeclaration, valueArgument: KSValueArgument) ->
+      logger.warn("StateStore> annotatedTargetType: ${annotatedType.qualifiedName?.asString()}, annotations: ${annotatedType.annotations.size}")
+      logger.warn("StateStore> @StateStore argument = ${valueArgument.name?.asString()}")
+
+      // TODO A batter way to handle code generation is to define generator here by type of StateStore
+      //  annotation. W have only one annotation at the moment, so there is no need to handle
+      //  different cases.
+
+      val stateSpec = valueArgument.value ?: IllegalStateException("StateStore should have stateSpec interface.")
+
+      // check if arguments are interface type
+      val declaration: KSDeclaration? = (stateSpec as? KSType)?.declaration
+      if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
+        logger.error("Store type should be an interface. ${(stateSpec as KSType).declaration.qualifiedName?.asString()}")
+      }
+
+      // @StateStore.stateSpec interface type
+      val stateSpecType = declaration as KSClassDeclaration
+
+      // parse if there are LiveData properties => ex) sample: LiveData<Int>
+      //...
+
+      // TODO refactor with this approach
+      //  StateStoreSourceGenerator(arguments).generate(codeGenerator)
+      // generate Abs{HelloStateStore|WorldStateSpec} class with kotlin poet
+      StateStoreSourceArguments.builder()
+          .setSuperClassName(stateSpecType.toClassName())
+          .setClassName(ClassName(annotatedType.packageName.asString(), "Abs${annotatedType.simpleName.asString()}"))
+          .setOriginatingFiles(annotatedType.containingFile?.let { listOf(it) } ?: emptyList())
+          .let {
+            StateStoreSourceGenerator(it.build())
+          }
     }
-
-    val myClass = ClassName(annotatedType.packageName.asString(), createClassName(annotatedType))
-
-    logger.warn("originatingFile:  ${annotatedType.containingFile}")
-    logger.warn("myClass: ${myClass.packageName}.${myClass.simpleName}")
-
-    val superClassName = stateSpec ?: throw IllegalStateException("Invalid stateSpec class argument found!")
-
-    return StateStoreSourceArguments.builder()
-        .setSuperClassName(superClassName)
-        .setClassName(ClassName(annotatedType.packageName.asString(), createClassName(annotatedType)))
-        .setOriginatingFiles(annotatedType.containingFile?.let { listOf(it) } ?: emptyList())
-        .let {
-          StateStoreSourceGenerator(it.build())
-        }
   }
 
   /**
    * A visitor for parsing interface arguments containing State LiveData properties.
    */
-  inner class StateStoreArgumentVisitor : KSVisitorVoid() {
-    override fun visitValueArgument(valueArgument: KSValueArgument, data: Unit) {
-      valueArgument.value?.also { arguments.add(it) }
+  class StateStoreVisitor(
+      private val targets: HashMap<KSClassDeclaration, KSValueArgument>
+  ) : KSVisitorVoid() {
+    private val visited = hashSetOf<Any>()
+
+    override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
+      classDeclaration.annotations
+          .firstOrNull { annotation: KSAnnotation ->
+            // precise type comparison -> it.annotationType.resolve() == stateStoreAnnotationType
+            annotation.shortName.asString() == "StateStore"
+          }
+          ?.arguments?.firstOrNull {
+            it.name?.asString() == "stateSpec"
+          }
+          ?.also {
+            targets[classDeclaration] = it
+          }
+    }
+
+    // used to check if the symbol is already visited by using accept method.
+    private fun hasVisited(symbol: Any): Boolean {
+      return if (visited.contains(symbol)) {
+        true
+      } else {
+        visited.add(symbol)
+        false
+      }
     }
   }
 }

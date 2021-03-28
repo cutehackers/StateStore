@@ -1,25 +1,18 @@
 package app.junhyounglee.statestore.compiler
 
-import app.junhyounglee.statestore.annotation.StateStore
 import app.junhyounglee.statestore.compiler.codegen.SourceGenerator
 import app.junhyounglee.statestore.compiler.codegen.StateStoreCoordinator
 import app.junhyounglee.statestore.compiler.codegen.StateStoreSourceArguments
-import app.junhyounglee.statestore.compiler.kotlinpoet.toClassName
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
-import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSDeclaration
-import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSValueArgument
 import com.google.devtools.ksp.symbol.KSVisitorVoid
-import com.google.devtools.ksp.validate
-import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.FileSpec
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.TypeSpec
@@ -91,14 +84,16 @@ class StateStoreProcessor : SymbolProcessor {
   }
 
   override fun process(resolver: Resolver): List<KSAnnotated> {
-    //coordinators.forEach { it.process(resolver, logger) }
+    // NOTE! stack overflow will happen if this is called:
+    //   coordinators.forEach { it.process(resolver, codeGenerator, logger) }
+    StateStoreCoordinator().process(resolver, codeGenerator, logger)
 
     // visit @StateStore annotation class
-    resolver.getSymbolsWithAnnotation(StateStore::class.qualifiedName!!)
-        .filter { it is KSClassDeclaration && it.validate() }
-        .forEach { annotatedType ->
-          annotatedType.accept(StateStoreVisitor(targets), Unit)
-        }
+//    resolver.getSymbolsWithAnnotation(StateStore::class.qualifiedName!!)
+//        .filter { it is KSClassDeclaration && it.validate() }
+//        .forEach { annotatedType ->
+//          annotatedType.accept(StateStoreVisitor(targets), Unit)
+//        }
 
 //    val stateStoreAnnotationType: KSType = resolver.getClassDeclarationByName(
 //        "app.junhyounglee.statestore.annotation.StateStore"
@@ -112,35 +107,41 @@ class StateStoreProcessor : SymbolProcessor {
      * annotatedType == HelloStateStore or WorldStateStore
      * stateSpecArgument(@StateStore.spec) == HelloStateSpec  or WorldStateSpec
      */
-    targets.forEach { (target: KSClassDeclaration, valueArgument: KSValueArgument) ->
-      logger.warn("StateStore> annotatedTargetType: ${target.qualifiedName?.asString()}, annotations: ${target.annotations.size}")
-      logger.warn("StateStore> @StateStore argument = ${valueArgument.name?.asString()}")
-
-      val stateSpec = valueArgument.value ?: IllegalStateException("StateStore should have stateSpec interface.")
-
-      // check if arguments are interface type
-      val declaration: KSDeclaration? = (stateSpec as? KSType)?.declaration
-      if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
-        logger.error("Store type should be an interface. ${(stateSpec as KSType).declaration.qualifiedName?.asString()}")
-      }
-
-      // @StateStore.stateSpec interface type
-      val stateSpecType = declaration as KSClassDeclaration
-
-      // parse if there are LiveData properties => ex) sample: LiveData<Int>
-      //...
-
-      // generate Abs{HelloStateStore|WorldStateSpec} class with kotlin poet
-      val arguments = StateStoreSourceArguments.builder()
-          .setSuperClassName(stateSpecType.toClassName())
-          .setClassName(ClassName(target.packageName.asString(), "Abs${target.simpleName.asString()}"))
-          .setOriginatingFiles(target.containingFile?.let { listOf(it) } ?: emptyList())
-          .build()
-      val klass: TypeSpec = onGenerate(arguments)
-
-      FileSpec.get(arguments.className.packageName, klass)
-          .writeTo(codeGenerator, arguments)
-    }
+//    targets.forEach { (target: KSClassDeclaration, valueArgument: KSValueArgument) ->
+//      logger.warn("StateStore> annotatedTargetType: ${target.qualifiedName?.asString()}, annotations: ${target.annotations.size}")
+//      logger.warn("StateStore> @StateStore argument = ${valueArgument.name?.asString()}")
+//
+//      // TODO A batter way to handle code generation is to define generator here by a type of StateStore annotation
+//      //  annotation. We have only one annotation at the moment, so there is no need to handle
+//      //  different cases.
+//
+//      val stateSpec = valueArgument.value ?: IllegalStateException("StateStore should have stateSpec interface.")
+//
+//      // check if arguments are interface type
+//      val declaration: KSDeclaration? = (stateSpec as? KSType)?.declaration
+//      if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
+//        logger.error("Store type should be an interface. ${(stateSpec as KSType).declaration.qualifiedName?.asString()}")
+//      }
+//
+//      // @StateStore.stateSpec interface type
+//      val stateSpecType = declaration as KSClassDeclaration
+//
+//      // parse if there are LiveData properties => ex) sample: LiveData<Int>
+//      //...
+//
+//      // TODO refactor with this approach
+//      //  StateStoreSourceGenerator(arguments).generate(codeGenerator)
+//      // generate Abs{HelloStateStore|WorldStateSpec} class with kotlin poet
+//      val arguments = StateStoreSourceArguments.builder()
+//          .setSuperClassName(stateSpecType.toClassName())
+//          .setClassName(ClassName(target.packageName.asString(), "Abs${target.simpleName.asString()}"))
+//          .setOriginatingFiles(target.containingFile?.let { listOf(it) } ?: emptyList())
+//          .build()
+//      val klass: TypeSpec = onGenerate(arguments)
+//
+//      FileSpec.get(arguments.className.packageName, klass)
+//          .writeTo(codeGenerator, arguments)
+//    }
   }
 
   private fun onGenerate(argument: StateStoreSourceArguments): TypeSpec {

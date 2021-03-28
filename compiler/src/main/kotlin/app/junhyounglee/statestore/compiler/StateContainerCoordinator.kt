@@ -18,9 +18,10 @@ abstract class StateContainerCoordinator(internal val klassType: KClass<out Anno
 
   fun process(resolver: Resolver, codeGenerator: CodeGenerator, logger: KSPLogger) {
     try {
-      val generator: SourceGenerator<out SourceArguments> = onProcess(resolver, logger)
-      generator.generate(codeGenerator)
+      val generators = onProcess(resolver, logger)
+      generators.forEach { it.generate(codeGenerator, logger) }
       logger.warn("generating coordinator...")
+
     } catch (e: Throwable) {
       logger.exception(e)
     }
@@ -29,7 +30,7 @@ abstract class StateContainerCoordinator(internal val klassType: KClass<out Anno
   protected abstract fun onProcess(
       resolver: Resolver,
       logger: KSPLogger
-  ): SourceGenerator<out SourceArguments>
+  ): List<SourceGenerator<out SourceArguments>>
 
   fun createClassName(annotatedType: KSClassDeclaration): String = annotatedType.simpleName.asString().let {
     if (it.isEmpty()) {
@@ -38,8 +39,10 @@ abstract class StateContainerCoordinator(internal val klassType: KClass<out Anno
       "Abs${it}"
     }
   }
+
 }
 
+@Suppress("unused")
 fun KSPropertyDeclaration.getTypeSimpleName() =
     if (type.element is KSClassifierReference && type.origin == Origin.KOTLIN) {
       (type.element as KSClassifierReference).referencedName()
