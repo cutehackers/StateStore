@@ -2,7 +2,6 @@ package app.junhyounglee.statestore.compiler.codegen
 
 import com.google.devtools.ksp.symbol.KSFile
 import com.squareup.kotlinpoet.ClassName
-import com.squareup.kotlinpoet.TypeName
 
 class StateStoreSourceArguments(
     val superClassName: ClassName,

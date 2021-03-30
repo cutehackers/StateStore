@@ -1,24 +1,14 @@
 package app.junhyounglee.statestore.compiler
 
+import app.junhyounglee.statestore.compiler.codegen.SourceArguments
 import app.junhyounglee.statestore.compiler.codegen.SourceGenerator
 import app.junhyounglee.statestore.compiler.codegen.StateStoreCoordinator
-import app.junhyounglee.statestore.compiler.codegen.StateStoreSourceArguments
 import com.google.devtools.ksp.processing.CodeGenerator
-import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.symbol.KSAnnotated
-import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSValueArgument
-import com.google.devtools.ksp.symbol.KSVisitorVoid
-import com.squareup.kotlinpoet.FileSpec
-import com.squareup.kotlinpoet.KModifier
-import com.squareup.kotlinpoet.TypeSpec
-import java.io.OutputStream
-import java.io.OutputStreamWriter
-import java.nio.charset.Charset
 
 /**
  * StateStore symbol processor
@@ -67,9 +57,9 @@ class StateStoreProcessor : SymbolProcessor {
   lateinit var codeGenerator: CodeGenerator
   lateinit var logger: KSPLogger
 
-  lateinit var coordinators: List<StateContainerCoordinator>
-
-  private val targets = HashMap<KSClassDeclaration, KSValueArgument>()
+  private val coordinators: List<StateContainerCoordinator> = listOf(
+      StateStoreCoordinator()
+  )
 
   override fun init(
       options: Map<String, String>,
@@ -80,91 +70,39 @@ class StateStoreProcessor : SymbolProcessor {
     this.codeGenerator = codeGenerator
     this.logger = logger
     setUpOptions(options)
-    setUpCoordinator()
   }
+
+  private val generators = mutableListOf<List<SourceGenerator<out SourceArguments>>>()
 
   override fun process(resolver: Resolver): List<KSAnnotated> {
     // NOTE! stack overflow will happen if this is called:
-    //   coordinators.forEach { it.process(resolver, codeGenerator, logger) }
-    StateStoreCoordinator().process(resolver, codeGenerator, logger)
+    coordinators.forEach {
+      logger.warn("coordinator is working ...")
+      generators.add(it.process(resolver, codeGenerator, logger))
+    }
 
-    // visit @StateStore annotation class
-//    resolver.getSymbolsWithAnnotation(StateStore::class.qualifiedName!!)
-//        .filter { it is KSClassDeclaration && it.validate() }
-//        .forEach { annotatedType ->
-//          annotatedType.accept(StateStoreVisitor(targets), Unit)
-//        }
-
-//    val stateStoreAnnotationType: KSType = resolver.getClassDeclarationByName(
-//        "app.junhyounglee.statestore.annotation.StateStore"
-//    )!!.asType(emptyList())
+    /*
+     * How to resolve kotlin symbol type from qualified name of type.
+     *
+     * val stateStoreAnnotationType: KSType = resolver.getClassDeclarationByName(
+     *   "app.junhyounglee.statestore.annotation.StateStore"
+     * )!!.asType(emptyList())
+     */
 
     return emptyList()
   }
 
   override fun finish() {
     /*
-     * annotatedType == HelloStateStore or WorldStateStore
-     * stateSpecArgument(@StateStore.spec) == HelloStateSpec  or WorldStateSpec
+     * Note!
+     * Using codeGenerator.createNewFile() triggers stack-overflow exception, which I don't know
+     * what the exact reason is. But running it here in finish() callback is good enough.
+     * SymbolProcessor.process()에서 codeGenerator.createNewFile을 사용할 경우 stack-overflow가 발생한다.
+     * 따라서 코드를 생성하는 코드는 finish() 루틴에서 실행한다.
      */
-//    targets.forEach { (target: KSClassDeclaration, valueArgument: KSValueArgument) ->
-//      logger.warn("StateStore> annotatedTargetType: ${target.qualifiedName?.asString()}, annotations: ${target.annotations.size}")
-//      logger.warn("StateStore> @StateStore argument = ${valueArgument.name?.asString()}")
-//
-//      // TODO A batter way to handle code generation is to define generator here by a type of StateStore annotation
-//      //  annotation. We have only one annotation at the moment, so there is no need to handle
-//      //  different cases.
-//
-//      val stateSpec = valueArgument.value ?: IllegalStateException("StateStore should have stateSpec interface.")
-//
-//      // check if arguments are interface type
-//      val declaration: KSDeclaration? = (stateSpec as? KSType)?.declaration
-//      if ((declaration as? KSClassDeclaration)?.classKind != ClassKind.INTERFACE) {
-//        logger.error("Store type should be an interface. ${(stateSpec as KSType).declaration.qualifiedName?.asString()}")
-//      }
-//
-//      // @StateStore.stateSpec interface type
-//      val stateSpecType = declaration as KSClassDeclaration
-//
-//      // parse if there are LiveData properties => ex) sample: LiveData<Int>
-//      //...
-//
-//      // TODO refactor with this approach
-//      //  StateStoreSourceGenerator(arguments).generate(codeGenerator)
-//      // generate Abs{HelloStateStore|WorldStateSpec} class with kotlin poet
-//      val arguments = StateStoreSourceArguments.builder()
-//          .setSuperClassName(stateSpecType.toClassName())
-//          .setClassName(ClassName(target.packageName.asString(), "Abs${target.simpleName.asString()}"))
-//          .setOriginatingFiles(target.containingFile?.let { listOf(it) } ?: emptyList())
-//          .build()
-//      val klass: TypeSpec = onGenerate(arguments)
-//
-//      FileSpec.get(arguments.className.packageName, klass)
-//          .writeTo(codeGenerator, arguments)
-//    }
-  }
-
-  private fun onGenerate(argument: StateStoreSourceArguments): TypeSpec {
-    val builder = TypeSpec.classBuilder(argument.className.simpleName)
-        .addKdoc(SourceGenerator.DOCUMENTATION)
-        .addModifiers(KModifier.PUBLIC)
-        .addModifiers(KModifier.ABSTRACT)
-        .addSuperinterface(argument.superClassName)
-    return builder.build()
-  }
-
-  private fun FileSpec.writeTo(
-      codeGenerator: CodeGenerator,
-      arguments: StateStoreSourceArguments
-  ) {
-    val dependencies = Dependencies(true, *arguments.originatingFiles.toTypedArray())
-    val packageName = arguments.className.packageName
-    val fileName = arguments.className.simpleName
-    val file = codeGenerator.createNewFile(dependencies, packageName, fileName)
-
-    // Don't use writeTo(file) because that tries to handle directories under the hood
-    OutputStreamWriter(file, Charset.forName("UTF-8"))
-        .use(::writeTo)
+    generators.flatten().forEach {
+      it.generate(codeGenerator, logger)
+    }
   }
 
   override fun onError() {
@@ -175,50 +113,10 @@ class StateStoreProcessor : SymbolProcessor {
     logger.warn("StateStore> options: $options")
   }
 
-  private fun setUpCoordinator() {
-    coordinators = mutableListOf<StateStoreCoordinator>().apply {
-      add(StateStoreCoordinator())
-    }
-  }
-
   private fun Resolver.getClassDeclarationByName(fullyQualifiedName: String): KSClassDeclaration? =
       getClassDeclarationByName(getKSNameFromString(fullyQualifiedName))
-
-  class StateStoreVisitor(
-      private val targets: HashMap<KSClassDeclaration, KSValueArgument>
-  ) : KSVisitorVoid() {
-    private val visited = hashSetOf<Any>()
-
-    override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
-      classDeclaration.annotations
-          .firstOrNull { annotation: KSAnnotation ->
-            // precise type comparison -> it.annotationType.resolve() == stateStoreAnnotationType
-            annotation.shortName.asString() == "StateStore"
-          }
-          ?.arguments?.firstOrNull {
-            it.name?.asString() == "stateSpec"
-          }
-          ?.also {
-            targets[classDeclaration] = it
-          }
-    }
-
-    // used to check if the symbol is already visited by using accept method.
-    private fun hasVisited(symbol: Any): Boolean {
-      return if (visited.contains(symbol)) {
-        true
-      } else {
-        visited.add(symbol)
-        false
-      }
-    }
-  }
 
   companion object {
     //private const val OPTIONS_DEBUGGABLE = "debuggable"
   }
-}
-
-fun OutputStream.appendText(str: String) {
-  this.write(str.toByteArray())
 }

@@ -5,6 +5,9 @@ import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.TypeSpec
 
 /**
+ * Source code generator of @StateStore annotated class. This will only write a kotlin code with
+ * given code arguments.
+ *
  * interface SampleStateSpec {
  *   val sample: LiveData<Int>
  * }

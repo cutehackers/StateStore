@@ -3,6 +3,7 @@ package app.junhyounglee.statestore.compiler.codegen
 import app.junhyounglee.statestore.annotation.StateStore
 import app.junhyounglee.statestore.compiler.StateContainerCoordinator
 import app.junhyounglee.statestore.compiler.kotlinpoet.toClassName
+import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.ClassKind
@@ -29,8 +30,9 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
 
   private val targets = HashMap<KSClassDeclaration, KSValueArgument>()
 
-  override fun onProcess(
+  override fun process(
       resolver: Resolver,
+      codeGenerator: CodeGenerator,
       logger: KSPLogger
   ): List<SourceGenerator<StateStoreSourceArguments>> {
     // visit @StateStore annotation class
@@ -68,7 +70,7 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
       logger.warn("StateStore> @StateStore argument = ${valueArgument.name?.asString()}")
 
       // TODO A batter way to handle code generation is to define generator here by type of StateStore
-      //  annotation. W have only one annotation at the moment, so there is no need to handle
+      //  annotation. We have only one annotation at the moment, so there is no need to handle
       //  different cases.
 
       val stateSpec = valueArgument.value ?: IllegalStateException("StateStore should have stateSpec interface.")
@@ -85,9 +87,7 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
       // parse if there are LiveData properties => ex) sample: LiveData<Int>
       //...
 
-      // TODO refactor with this approach
-      //  StateStoreSourceGenerator(arguments).generate(codeGenerator)
-      // generate Abs{HelloStateStore|WorldStateSpec} class with kotlin poet
+      // generate Abs{HelloStateStore|WorldStateSpec} class arguments with kotlin poet
       StateStoreSourceArguments.builder()
           .setSuperClassName(stateSpecType.toClassName())
           .setClassName(ClassName(annotatedType.packageName.asString(), "Abs${annotatedType.simpleName.asString()}"))

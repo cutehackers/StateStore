@@ -16,19 +16,9 @@ import kotlin.reflect.KClass
  */
 abstract class StateContainerCoordinator(internal val klassType: KClass<out Annotation>) {
 
-  fun process(resolver: Resolver, codeGenerator: CodeGenerator, logger: KSPLogger) {
-    try {
-      val generators = onProcess(resolver, logger)
-      generators.forEach { it.generate(codeGenerator, logger) }
-      logger.warn("generating coordinator...")
-
-    } catch (e: Throwable) {
-      logger.exception(e)
-    }
-  }
-
-  protected abstract fun onProcess(
+  abstract fun process(
       resolver: Resolver,
+      codeGenerator: CodeGenerator,
       logger: KSPLogger
   ): List<SourceGenerator<out SourceArguments>>
 
