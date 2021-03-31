@@ -2,6 +2,7 @@ package app.junhyounglee.statestore.compiler.codegen
 
 import app.junhyounglee.statestore.annotation.StateStore
 import app.junhyounglee.statestore.compiler.StateContainerCoordinator
+import app.junhyounglee.statestore.compiler.getTypeSimpleName
 import app.junhyounglee.statestore.compiler.kotlinpoet.toClassName
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.KSPLogger
@@ -10,6 +11,7 @@ import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSValueArgument
 import com.google.devtools.ksp.symbol.KSVisitorVoid
@@ -42,25 +44,6 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
           annotatedType.accept(StateStoreVisitor(targets), Unit)
         }
 
-    // parse if there are LiveData properties => ex) sample: LiveData<Int>
-//    stateSpecType.getAllProperties().forEach { property: KSPropertyDeclaration ->
-//      /*
-//       * KSReferenceElement
-//       *  - KSClassifierReference(DeclaredType)
-//       *  - KSCallableReference(ExecutableType)
-//       */
-//      val propertyType = property.type.resolve()
-//      // "LiveData"
-//      val propertyTypeSimpleName = property.getTypeSimpleName()
-//
-//      /*
-//       * val sample: LiveData<Int>
-//       *  stateSpec: property.simpleName.asString()
-//       *  androidx.lifecycle.LiveData: propertyType.declaration.qualifiedName?.asString()
-//       *  kotlin.Int: propertyType.arguments.first().type?.resolve()?.declaration?.qualifiedName?.asString()
-//       */
-//    }
-
     /*
      * annotatedType == HelloStateStore or WorldStateStore
      * stateSpecArgument(@StateStore.spec) == HelloStateSpec  or WorldStateSpec
@@ -85,7 +68,25 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
       val stateSpecType = declaration as KSClassDeclaration
 
       // parse if there are LiveData properties => ex) sample: LiveData<Int>
-      //...
+      stateSpecType.getAllProperties().forEach { property: KSPropertyDeclaration ->
+        /*
+         * KSReferenceElement
+         *  - KSClassifierReference(DeclaredType)
+         *  - KSCallableReference(ExecutableType)
+         */
+        val propertyType = property.type.resolve()
+
+        // "LiveData"
+        val propertyTypeSimpleName = property.getTypeSimpleName()
+
+        /*
+         * val sample: LiveData<Int>
+         *  sample: property.simpleName.asString()
+         *  androidx.lifecycle.LiveData: propertyType.declaration.qualifiedName?.asString()
+         *  kotlin.Int: propertyType.arguments.first().type?.resolve()?.declaration?.qualifiedName?.asString()
+         */
+        logger.warn("StateStore> property name: ${property.simpleName.asString()}, type: ${propertyType.declaration.qualifiedName?.asString()}")
+      }
 
       // generate Abs{HelloStateStore|WorldStateSpec} class arguments with kotlin poet
       StateStoreSourceArguments.builder()
