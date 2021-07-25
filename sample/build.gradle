@@ -20,10 +20,37 @@ android {
     }
 
     buildTypes {
+        debug {
+            sourceSets.main.java.srcDirs += [
+                'build/generated/ksp/debug/kotlin',
+                'build/generated/ksp/debug/java'
+            ]
+        }
         release {
             minifyEnabled false
+            sourceSets.main.java.srcDirs += [
+                'build/generated/ksp/release/kotlin',
+                'build/generated/ksp/release/java'
+            ]
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        /**
+         * in kTS
+         * getByName("debug") {
+         *     sourceSets {
+         *         getByName("main") {
+         *             java.srcDir(File("build/generated/ksp/debug/kotlin"))
+         *         }
+         *     }
+         * }
+         * getByName("release") {
+         *     sourceSets {
+         *         getByName("main") {
+         *             java.srcDir(File("build/generated/ksp/release/kotlin"))
+         *         }
+         *     }
+         * }
+         */
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
