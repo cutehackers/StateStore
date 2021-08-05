@@ -50,7 +50,7 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
      * stateSpecArgument(@StateStore.spec) == HelloStateSpec  or WorldStateSpec
      */
     return targets.map { (annotatedType: KSClassDeclaration, valueArgument: KSValueArgument) ->
-      logger.warn("StateStore> annotatedTargetType: ${annotatedType.qualifiedName?.asString()}, annotations: ${annotatedType.annotations.size}")
+      logger.warn("StateStore> annotatedTargetType: ${annotatedType.qualifiedName?.asString()}, annotations: ${annotatedType.annotations.count()}")
       logger.warn("StateStore> @StateStore argument = ${valueArgument.name?.asString()}")
 
       // TODO A batter way to handle code generation is to define generator here by type of StateStore
@@ -103,7 +103,7 @@ class StateStoreCoordinator : StateContainerCoordinator(StateStore::class) {
           }.map {
             val propertyType = it.type.resolve()
             StateSpec(it.simpleName.asString(), propertyType.arguments.first().toTypeName(classTypeParamsResolver))
-          }
+          }.toList()
       if (stateSpecs.isEmpty()) {
         logger.warn("A StateSpec interface is required to have LiveData properties.")
       }

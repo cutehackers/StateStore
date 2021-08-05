@@ -145,13 +145,13 @@ internal fun KSTypeParameter.toTypeVariableName(
     typeParamResolver: TypeParameterResolver,
 ): TypeVariableName {
   val typeVarName = name.getShortName()
-  val typeVarBounds = bounds.map { it.toTypeName(typeParamResolver) }
+  val typeVarBounds = bounds.map { it.toTypeName(typeParamResolver) }.toList()
   val typeVarVariance = when (variance) {
     Variance.COVARIANT -> KModifier.OUT
     Variance.CONTRAVARIANT -> KModifier.IN
     else -> null
   }
-  return TypeVariableName(typeVarName, bounds = typeVarBounds, variance = typeVarVariance)
+  return TypeVariableName.invoke(typeVarName, typeVarBounds, variance = typeVarVariance)
 }
 
 internal fun KSTypeArgument.toTypeName(typeParamResolver: TypeParameterResolver): TypeName {
