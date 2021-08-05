@@ -1,23 +1,22 @@
 ext.versions = [
-        compile_sdk: 30,
-        build_tools: "30.0.3",
-        min_sdk: 16,
-        target_sdk: 30,
-        kotlin: '1.4.30',
-        ksp: "${getProperty('versions.kotlin.ksp')}",
-        kotlin_poet : '1.7.2',
-        junit: '4.13.2',
-        navigation: '2.3.2'
+    compile_sdk: 30,
+    build_tools: "30.0.3",
+    min_sdk    : 16,
+    target_sdk : 30,
+    kotlin     : '1.5.21',
+    ksp        : "${getProperty('versions.kotlin.ksp')}",
+    kotlin_poet: '1.7.2',
+    junit      : '4.13.2',
+    navigation : '2.3.2'
 ]
 ext.deps = [
-        'kotlin': [
-                'jdk7': "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${versions.kotlin}",
-                'jdk8': "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${versions.kotlin}",
-                'stdlib': "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}",
-                'ksp': "com.google.devtools.ksp:symbol-processing-api:${versions.ksp}",
-                'poet': "com.squareup:kotlinpoet:${versions.kotlin_poet}"
-        ],
-        'junit': "junit:junit:${versions.junit}",
-        'navigation_fragment_ktx': "androidx.navigation:navigation-fragment-ktx:${versions.navigation}",
-        'navigation_ui_ktx': "androidx.navigation:navigation-ui-ktx:${versions.navigation}",
+    'kotlin'                 : [
+        'jdk8'  : "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${versions.kotlin}",
+        'stdlib': "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}",
+        'ksp'   : "com.google.devtools.ksp:symbol-processing-api:${versions.ksp}",
+        'poet'  : "com.squareup:kotlinpoet:${versions.kotlin_poet}"
+    ],
+    'junit'                  : "junit:junit:${versions.junit}",
+    'navigation_fragment_ktx': "androidx.navigation:navigation-fragment-ktx:${versions.navigation}",
+    'navigation_ui_ktx'      : "androidx.navigation:navigation-ui-ktx:${versions.navigation}",
 ]

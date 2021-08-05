@@ -7,6 +7,8 @@ import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
+import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
+import com.google.devtools.ksp.processing.SymbolProcessorProvider
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 
@@ -52,29 +54,29 @@ import com.google.devtools.ksp.symbol.KSClassDeclaration
  *  - https://github.com/SeongUgJung/KspSample
  *  - https://medium.com/@jsuch2362/my-first-kotlin-symbol-processing-tool-for-android-4eb3a2cfd600
  */
-class StateStoreProcessor : SymbolProcessor {
-
-  lateinit var codeGenerator: CodeGenerator
-  lateinit var logger: KSPLogger
+class StateStoreProcessor(
+  options: Map<String, String>,
+  private val codeGenerator: CodeGenerator,
+  private val logger: KSPLogger
+) : SymbolProcessor {
 
   private val coordinators: List<StateContainerCoordinator> = listOf(
       StateStoreCoordinator()
   )
 
-  override fun init(
-      options: Map<String, String>,
-      kotlinVersion: KotlinVersion,
-      codeGenerator: CodeGenerator,
-      logger: KSPLogger
-  ) {
-    this.codeGenerator = codeGenerator
-    this.logger = logger
+  private val generators = mutableListOf<List<SourceGenerator<out SourceArguments>>>()
+
+  private var invoked = false
+
+  init {
     setUpOptions(options)
   }
 
-  private val generators = mutableListOf<List<SourceGenerator<out SourceArguments>>>()
-
   override fun process(resolver: Resolver): List<KSAnnotated> {
+    if (invoked) {
+      return emptyList()
+    }
+
     // NOTE! stack overflow will happen if this is called:
     coordinators.forEach {
       logger.warn("coordinator is working ...")
@@ -88,7 +90,7 @@ class StateStoreProcessor : SymbolProcessor {
      *   "app.junhyounglee.statestore.annotation.StateStore"
      * )!!.asType(emptyList())
      */
-
+    invoked = true
     return emptyList()
   }
 
@@ -119,4 +121,13 @@ class StateStoreProcessor : SymbolProcessor {
   companion object {
     //private const val OPTIONS_DEBUGGABLE = "debuggable"
   }
+}
+
+class StateStoreProcessorProvider : SymbolProcessorProvider {
+  override fun create(env: SymbolProcessorEnvironment): SymbolProcessor =
+    StateStoreProcessor(
+      env.options,
+      env.codeGenerator,
+      env.logger
+    )
 }
